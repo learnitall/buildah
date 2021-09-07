@@ -273,10 +273,6 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		return errors.Errorf("'rm' and 'force-rm' can only be set with either 'layers' or 'no-cache'")
 	}
 
-	if c.Flag("cache-from").Changed {
-		logrus.Debugf("build --cache-from not enabled, has no effect")
-	}
-
 	if c.Flag("compress").Changed {
 		logrus.Debugf("--compress option specified but is ignored")
 	}
