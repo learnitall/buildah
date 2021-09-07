@@ -51,7 +51,7 @@ type BudResults struct {
 	Annotation          []string
 	Authfile            string
 	BuildArg            []string
-	CacheFrom           string
+	CacheFrom           []string
 	CertDir             string
 	Compress            bool
 	Creds               string
@@ -179,7 +179,7 @@ func GetBudFlags(flags *BudResults) pflag.FlagSet {
 	fs.StringArrayVar(&flags.Annotation, "annotation", []string{}, "Set metadata for an image (default [])")
 	fs.StringVar(&flags.Authfile, "authfile", "", "path of the authentication file.")
 	fs.StringArrayVar(&flags.BuildArg, "build-arg", []string{}, "`argument=value` to supply to the builder")
-	fs.StringVar(&flags.CacheFrom, "cache-from", "", "Images to utilise as potential cache sources. The build process does not currently support caching so this is a NOOP.")
+	fs.StringArrayVar(&flags.CacheFrom, "cache-from", []string{}, "Images to utilise as potential cache sources.")
 	fs.StringVar(&flags.CertDir, "cert-dir", "", "use certificates at the specified path to access the registry")
 	fs.BoolVar(&flags.Compress, "compress", false, "This is legacy option, which has no effect on the image")
 	fs.StringVar(&flags.Creds, "creds", "", "use `[username[:password]]` for accessing the registry")
