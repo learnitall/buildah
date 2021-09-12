@@ -269,6 +269,10 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		return errors.Errorf("can only set one of 'layers' or 'no-cache'")
 	}
 
+	if c.Flag("cache-from").Changed && c.Flag("no-cache").Changed {
+		return errors.Errorf("can only set one of 'cache-from' or 'no-cache")
+	}
+
 	if (c.Flag("rm").Changed || c.Flag("force-rm").Changed) && (!c.Flag("layers").Changed && !c.Flag("no-cache").Changed) {
 		return errors.Errorf("'rm' and 'force-rm' can only be set with either 'layers' or 'no-cache'")
 	}
@@ -347,6 +351,7 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		MaxPullPushRetries:      maxPullPushRetries,
 		NamespaceOptions:        namespaceOptions,
 		NoCache:                 iopts.NoCache,
+		ExtraCacheImages:        iopts.CacheFrom,
 		OS:                      systemContext.OSChoice,
 		Out:                     stdout,
 		Output:                  output,

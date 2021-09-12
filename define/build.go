@@ -187,6 +187,9 @@ type BuildOptions struct {
 	// NoCache tells the builder to build the image from scratch without checking for a cache.
 	// It creates a new set of cached images for the build.
 	NoCache bool
+	// ExtraCacheImages tells the builder which local images to use as an additional source of
+	// cached layers for the build
+	ExtraCacheImages []string
 	// RemoveIntermediateCtrs tells the builder whether to remove intermediate containers used
 	// during the build process. Default is true.
 	RemoveIntermediateCtrs bool

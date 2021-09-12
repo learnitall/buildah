@@ -93,6 +93,7 @@ type Executor struct {
 	annotations                    []string
 	layers                         bool
 	useCache                       bool
+	extraCacheImages               []string
 	removeIntermediateCtrs         bool
 	forceRmIntermediateCtrs        bool
 	imageMap                       map[string]string           // Used to map images that we create to handle the AS construct.
@@ -240,6 +241,7 @@ func newExecutor(logger *logrus.Logger, logPrefix string, store storage.Store, o
 		annotations:                    append([]string{}, options.Annotations...),
 		layers:                         options.Layers,
 		useCache:                       !options.NoCache,
+		extraCacheImages:               options.ExtraCacheImages,
 		removeIntermediateCtrs:         options.RemoveIntermediateCtrs,
 		forceRmIntermediateCtrs:        options.ForceRmIntermediateCtrs,
 		imageMap:                       make(map[string]string),
