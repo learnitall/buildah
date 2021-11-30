@@ -401,6 +401,7 @@ func (s *StageExecutor) Copy(excludes []string, copies ...imagebuilder.Copy) err
 			PreserveOwnership: preserveOwnership,
 			ContextDir:        contextDir,
 			Excludes:          copyExcludes,
+			IgnoreFile:        s.executor.ignoreFile,
 			IDMappingOptions:  idMappingOptions,
 			StripSetuidBit:    stripSetuid,
 			StripSetgidBit:    stripSetgid,
@@ -439,6 +440,7 @@ func (s *StageExecutor) Run(run imagebuilder.Run, config docker.Config) error {
 		User:             config.User,
 		WorkingDir:       config.WorkingDir,
 		Entrypoint:       config.Entrypoint,
+		ContextDir:       s.executor.contextDir,
 		Cmd:              config.Cmd,
 		Stdin:            stdin,
 		Stdout:           s.executor.out,
@@ -673,8 +675,8 @@ func (s *StageExecutor) Execute(ctx context.Context, base string) (imgID string,
 	checkForLayers := s.executor.layers && s.executor.useCache
 	moreStages := s.index < len(s.stages)-1
 	lastStage := !moreStages
-	imageIsUsedLater := moreStages && (s.executor.baseMap[stage.Name] || s.executor.baseMap[fmt.Sprintf("%d", stage.Position)])
-	rootfsIsUsedLater := moreStages && (s.executor.rootfsMap[stage.Name] || s.executor.rootfsMap[fmt.Sprintf("%d", stage.Position)])
+	imageIsUsedLater := moreStages && (s.executor.baseMap[stage.Name] || s.executor.baseMap[strconv.Itoa(stage.Position)])
+	rootfsIsUsedLater := moreStages && (s.executor.rootfsMap[stage.Name] || s.executor.rootfsMap[strconv.Itoa(stage.Position)])
 
 	// If the base image's name corresponds to the result of an earlier
 	// stage, make sure that stage has finished building an image, and
@@ -1110,10 +1112,10 @@ func (s *StageExecutor) getCreatedBy(node *parser.Node, addedContentSummary stri
 	}
 	switch strings.ToUpper(node.Value) {
 	case "ARG":
-		buildArgs := s.getBuildArgs()
+		buildArgs := s.getBuildArgsKey()
 		return "/bin/sh -c #(nop) ARG " + buildArgs
 	case "RUN":
-		buildArgs := s.getBuildArgs()
+		buildArgs := s.getBuildArgsResolvedForRun()
 		if buildArgs != "" {
 			return "|" + strconv.Itoa(len(strings.Split(buildArgs, " "))) + " " + buildArgs + " /bin/sh -c " + node.Original[4:]
 		}
@@ -1131,10 +1133,47 @@ func (s *StageExecutor) getCreatedBy(node *parser.Node, addedContentSummary stri
 
 // getBuildArgs returns a string of the build-args specified during the build process
 // it excludes any build-args that were not used in the build process
-func (s *StageExecutor) getBuildArgs() string {
-	buildArgs := s.stage.Builder.Arguments()
-	sort.Strings(buildArgs)
-	return strings.Join(buildArgs, " ")
+// values for args are overridden by the values specified using ENV.
+// Reason: Values from ENV will always override values specified arg.
+func (s *StageExecutor) getBuildArgsResolvedForRun() string {
+	var envs []string
+	configuredEnvs := make(map[string]string)
+	dockerConfig := s.stage.Builder.Config()
+
+	for _, env := range dockerConfig.Env {
+		splitv := strings.SplitN(env, "=", 2)
+		if len(splitv) == 2 {
+			configuredEnvs[splitv[0]] = splitv[1]
+		}
+	}
+
+	for key, value := range s.stage.Builder.Args {
+		if _, ok := s.stage.Builder.AllowedArgs[key]; ok {
+			// if value was in image it will be given higher priority
+			// so please embed that into build history
+			_, inImage := configuredEnvs[key]
+			if inImage {
+				envs = append(envs, fmt.Sprintf("%s=%s", key, configuredEnvs[key]))
+			} else {
+				envs = append(envs, fmt.Sprintf("%s=%s", key, value))
+			}
+		}
+	}
+	sort.Strings(envs)
+	return strings.Join(envs, " ")
+}
+
+// getBuildArgs key returns set args are key which were specified during the build process
+// following function will be exclusively used by build history
+func (s *StageExecutor) getBuildArgsKey() string {
+	var envs []string
+	for key := range s.stage.Builder.Args {
+		if _, ok := s.stage.Builder.AllowedArgs[key]; ok {
+			envs = append(envs, key)
+		}
+	}
+	sort.Strings(envs)
+	return strings.Join(envs, " ")
 }
 
 // tagExistingImage adds names to an image already in the store
@@ -1364,6 +1403,7 @@ func (s *StageExecutor) commit(ctx context.Context, createdBy string, emptyLayer
 		RetryDelay:            s.executor.retryPullPushDelay,
 		HistoryTimestamp:      s.executor.timestamp,
 		Manifest:              s.executor.manifest,
+		UnsetEnvs:             s.executor.unsetEnvs,
 	}
 	imgID, _, manifestDigest, err := s.builder.Commit(ctx, imageRef, options)
 	if err != nil {

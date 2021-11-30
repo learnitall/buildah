@@ -14,14 +14,8 @@ echo "Setting up $OS_RELEASE_ID $OS_RELEASE_VER"
 cd $GOSRC
 case "$OS_RELEASE_ID" in
     fedora)
-        # Not executing IN_PODMAN container
-        if [[ -z "$CONTAINER" ]]; then
-            warn "Adding secondary testing partition & growing root filesystem"
-            bash $SCRIPT_BASE/add_second_partition.sh
-        fi
-
         warn "Hard-coding podman to use crun"
-	cat > /etc/containers/containers.conf <<EOF
+        cat > /etc/containers/containers.conf <<EOF
 [engine]
 runtime="crun"
 EOF
@@ -35,7 +29,18 @@ EOF
     ubuntu)
         if [[ "$1" == "conformance" ]]; then
             msg "Installing previously downloaded/cached packages"
-            bigto dpkg -i $PACKAGE_DOWNLOAD_DIR/*.deb
+            ooe.sh dpkg -i \
+                $PACKAGE_DOWNLOAD_DIR/containerd.io*.deb \
+                $PACKAGE_DOWNLOAD_DIR/docker-ce*.deb
+
+            # At the time of this comment, Ubuntu is using systemd-resolved
+            # which interfears badly with conformance testing.  Some tests
+            # need to run dnsmasq on port 53.
+            if [[ -r "/run/systemd/resolve/resolv.conf" ]]; then
+                msg "Disabling systemd-resolved service"
+                systemctl stop systemd-resolved.service
+                cp /run/systemd/resolve/resolv.conf /etc/
+            fi
         fi
         ;;
     *)

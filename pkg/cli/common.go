@@ -48,6 +48,7 @@ type NameSpaceResults struct {
 
 // BudResults represents the results for Build flags
 type BudResults struct {
+	AllPlatforms        bool
 	Annotation          []string
 	Authfile            string
 	BuildArg            []string
@@ -86,6 +87,7 @@ type BudResults struct {
 	Jobs                int
 	LogRusage           bool
 	RusageLogFile       string
+	UnsetEnvs           []string
 }
 
 // FromAndBugResults represents the results for common flags
@@ -175,6 +177,7 @@ func GetLayerFlags(flags *LayerResults) pflag.FlagSet {
 // GetBudFlags returns common build flags
 func GetBudFlags(flags *BudResults) pflag.FlagSet {
 	fs := pflag.FlagSet{}
+	fs.BoolVar(&flags.AllPlatforms, "all-platforms", false, "attempt to build for all base image platforms")
 	fs.String("arch", runtime.GOARCH, "set the ARCH of the image to the provided value instead of the architecture of the host")
 	fs.StringArrayVar(&flags.Annotation, "annotation", []string{}, "Set metadata for an image (default [])")
 	fs.StringVar(&flags.Authfile, "authfile", "", "path of the authentication file.")
@@ -229,6 +232,7 @@ func GetBudFlags(flags *BudResults) pflag.FlagSet {
 	fs.Int64Var(&flags.Timestamp, "timestamp", 0, "set created timestamp to the specified epoch seconds to allow for deterministic builds, defaults to current time")
 	fs.BoolVar(&flags.TLSVerify, "tls-verify", true, "require HTTPS and verify certificates when accessing the registry")
 	fs.String("variant", "", "override the `variant` of the specified image")
+	fs.StringSliceVar(&flags.UnsetEnvs, "unsetenv", nil, "Unset environment variable from final image")
 	return fs
 }
 
@@ -261,6 +265,7 @@ func GetBudFlagsCompletions() commonComp.FlagCompletions {
 	flagCompletion["target"] = commonComp.AutocompleteNone
 	flagCompletion["timestamp"] = commonComp.AutocompleteNone
 	flagCompletion["variant"] = commonComp.AutocompleteNone
+	flagCompletion["unsetenv"] = commonComp.AutocompleteNone
 	return flagCompletion
 }
 

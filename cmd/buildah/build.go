@@ -100,6 +100,7 @@ func getContainerfiles(files []string) []string {
 
 func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 	output := ""
+	cleanTmpFile := false
 	tags := []string{}
 	if c.Flag("tag").Changed {
 		tags = iopts.Tag
@@ -107,9 +108,20 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 			output = tags[0]
 			tags = tags[1:]
 		}
+		if c.Flag("manifest").Changed {
+			for _, tag := range tags {
+				if tag == iopts.Manifest {
+					return errors.New("the same name must not be specified for both '--tag' and '--manifest'")
+				}
+			}
+		}
 	}
 	if err := auth.CheckAuthFile(iopts.BudResults.Authfile); err != nil {
 		return err
+	}
+	iopts.BudResults.Authfile, cleanTmpFile = buildahutil.MirrorToTempFileIfPathIsDescriptor(iopts.BudResults.Authfile)
+	if cleanTmpFile {
+		defer os.Remove(iopts.BudResults.Authfile)
 	}
 
 	pullPolicy := define.PullIfMissing
@@ -312,7 +324,7 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 
 	var excludes []string
 	if iopts.IgnoreFile != "" {
-		if excludes, err = parseIgnore(iopts.IgnoreFile); err != nil {
+		if excludes, _, err = parse.ContainerIgnoreFile(contextDir, iopts.IgnoreFile); err != nil {
 			return err
 		}
 	}
@@ -324,6 +336,7 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 	options := define.BuildOptions{
 		AddCapabilities:         iopts.CapAdd,
 		AdditionalTags:          tags,
+		AllPlatforms:            iopts.AllPlatforms,
 		Annotations:             iopts.Annotation,
 		Architecture:            systemContext.ArchitectureChoice,
 		Args:                    args,
@@ -344,6 +357,7 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		IIDFile:                 iopts.Iidfile,
 		In:                      stdin,
 		Isolation:               isolation,
+		IgnoreFile:              iopts.IgnoreFile,
 		Labels:                  iopts.Label,
 		Layers:                  layers,
 		LogRusage:               iopts.LogRusage,
@@ -375,6 +389,7 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		Excludes:                excludes,
 		Timestamp:               timestamp,
 		Platforms:               platforms,
+		UnsetEnvs:               iopts.UnsetEnvs,
 	}
 	if iopts.Quiet {
 		options.ReportWriter = ioutil.Discard

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -37,6 +38,9 @@ func testMinimal(t *testing.T, modify func(g *generate.Generator, rootDir, bundl
 	if err != nil {
 		t.Fatalf("generate.New(%q): %v", "linux", err)
 	}
+	if err = setupSeccomp(g.Config, ""); err != nil {
+		t.Fatalf("setupSeccomp(%q): %v", "", err)
+	}
 
 	tempDir, err := ioutil.TempDir("", "chroot-test")
 	if err != nil {
@@ -54,6 +58,11 @@ func testMinimal(t *testing.T, modify func(g *generate.Generator, rootDir, bundl
 	rootDir := filepath.Join(tempDir, "root")
 	if err := os.Mkdir(rootDir, 0711); err != nil {
 		t.Fatalf("os.Mkdir(%q): %v", rootDir, err)
+	}
+
+	rootTmpDir := filepath.Join(rootDir, "tmp")
+	if err := os.Mkdir(rootTmpDir, 01777); err != nil {
+		t.Fatalf("os.Mkdir(%q): %v", rootTmpDir, err)
 	}
 
 	specPath := filepath.Join("..", "tests", reportCommand, reportCommand)
@@ -122,7 +131,8 @@ func TestMinimalSkeleton(t *testing.T) {
 		func(g *generate.Generator, rootDir, bundleDir string) {
 		},
 		func(t *testing.T, report *types.TestReport) {
-		})
+		},
+	)
 }
 
 func TestProcessTerminal(t *testing.T) {
@@ -138,7 +148,8 @@ func TestProcessTerminal(t *testing.T) {
 				if report.Spec.Process.Terminal != terminal {
 					t.Fatalf("expected terminal = %v, got %v", terminal, report.Spec.Process.Terminal)
 				}
-			})
+			},
+		)
 	}
 }
 
@@ -159,7 +170,8 @@ func TestProcessConsoleSize(t *testing.T) {
 				if report.Spec.Process.ConsoleSize.Height != size[1] {
 					t.Fatalf("expected console height = %v, got %v", size[1], report.Spec.Process.ConsoleSize.Height)
 				}
-			})
+			},
+		)
 	}
 }
 
@@ -181,7 +193,8 @@ func TestProcessUser(t *testing.T) {
 				if report.Spec.Process.User.GID != id+1 {
 					t.Fatalf("expected GID %v, got %v", id+1, report.Spec.Process.User.GID)
 				}
-			})
+			},
+		)
 	}
 }
 
@@ -193,7 +206,7 @@ func TestProcessEnv(t *testing.T) {
 	testMinimal(t,
 		func(g *generate.Generator, rootDir, bundleDir string) {
 			g.ClearProcessEnv()
-			g.AddProcessEnv("PARENT_TEST_PID", fmt.Sprintf("%d", syscall.Getpid()))
+			g.AddProcessEnv("PARENT_TEST_PID", strconv.Itoa(syscall.Getpid()))
 		},
 		func(t *testing.T, report *types.TestReport) {
 			for _, ev := range report.Spec.Process.Env {
@@ -202,7 +215,8 @@ func TestProcessEnv(t *testing.T) {
 				}
 			}
 			t.Fatalf("expected environment variable %q", e)
-		})
+		},
+	)
 }
 
 func TestProcessCwd(t *testing.T) {
@@ -220,7 +234,8 @@ func TestProcessCwd(t *testing.T) {
 			if report.Spec.Process.Cwd != "/no-such-directory" {
 				t.Fatalf("expected %q, got %q", "/no-such-directory", report.Spec.Process.Cwd)
 			}
-		})
+		},
+	)
 }
 
 func TestProcessCapabilities(t *testing.T) {
@@ -235,7 +250,8 @@ func TestProcessCapabilities(t *testing.T) {
 			if len(report.Spec.Process.Capabilities.Permitted) != 0 {
 				t.Fatalf("expected no permitted capabilities, got %#v", report.Spec.Process.Capabilities.Permitted)
 			}
-		})
+		},
+	)
 	testMinimal(t,
 		func(g *generate.Generator, rootDir, bundleDir string) {
 			g.ClearProcessCapabilities()
@@ -262,7 +278,8 @@ func TestProcessCapabilities(t *testing.T) {
 			if report.Spec.Process.Capabilities.Permitted[0] != "CAP_IPC_LOCK" {
 				t.Fatalf("expected one capability CAP_IPC_LOCK, got %#v", report.Spec.Process.Capabilities.Permitted)
 			}
-		})
+		},
+	)
 }
 
 func TestProcessRlimits(t *testing.T) {
@@ -298,7 +315,8 @@ func TestProcessRlimits(t *testing.T) {
 						t.Fatalf("hard limit was set to %d, not %d", rlim.Hard, limit)
 					}
 				}
-			})
+			},
+		)
 	}
 }
 
@@ -315,7 +333,8 @@ func TestProcessNoNewPrivileges(t *testing.T) {
 				if report.Spec.Process.NoNewPrivileges != nope {
 					t.Fatalf("expected no-new-prives to be %v, got %v", nope, report.Spec.Process.NoNewPrivileges)
 				}
-			})
+			},
+		)
 	}
 }
 
@@ -336,7 +355,8 @@ func TestProcessOOMScoreAdj(t *testing.T) {
 				if adjusted != adj {
 					t.Fatalf("expected oom-score-adj to be %v, got %v", adj, adjusted)
 				}
-			})
+			},
+		)
 	}
 }
 
@@ -353,7 +373,8 @@ func TestHostname(t *testing.T) {
 			if report.Spec.Hostname != hostname {
 				t.Fatalf("expected %q, got %q", hostname, report.Spec.Hostname)
 			}
-		})
+		},
+	)
 }
 
 func TestMounts(t *testing.T) {
@@ -379,7 +400,8 @@ func TestMounts(t *testing.T) {
 			if !found {
 				t.Fatal("added mount not found")
 			}
-		})
+		},
+	)
 }
 
 func TestLinuxIDMapping(t *testing.T) {
@@ -415,7 +437,8 @@ func TestLinuxIDMapping(t *testing.T) {
 			if report.Spec.Linux.GIDMappings[0].Size != 1 {
 				t.Fatalf("expected container gid map size to be 1, got %d", report.Spec.Linux.GIDMappings[0].Size)
 			}
-		})
+		},
+	)
 }
 
 func TestLinuxIDMappingShift(t *testing.T) {
@@ -451,5 +474,6 @@ func TestLinuxIDMappingShift(t *testing.T) {
 			if report.Spec.Linux.GIDMappings[0].Size != 1 {
 				t.Fatalf("expected container gid map size to be 1, got %d", report.Spec.Linux.GIDMappings[0].Size)
 			}
-		})
+		},
+	)
 }
